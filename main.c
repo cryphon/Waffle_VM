@@ -22,7 +22,13 @@ typedef struct {
 } machine;
 
 // instructions type
-typedef enum { INST_PUSH, INST_ADD, INST_SUB } inst_type;
+typedef enum {
+  INST_PUSH,
+  INST_ADD,
+  INST_SUB,
+  INST_EQ,
+  INST_READ_PTR
+} inst_type;
 
 // instruction
 typedef struct {
@@ -38,6 +44,11 @@ instruction inst_add(void) { return (instruction){.type = INST_ADD}; }
 
 instruction inst_sub(void) { return (instruction){.type = INST_SUB}; }
 
+instruction inst_eq(void) { return (instruction){.type = INST_EQ}; }
+
+instruction inst_read_previous_ptr(void) {
+  return (instruction){.type = INST_READ_PTR};
+}
 machine vm = {0};
 
 trap exec_vm_inst(machine *vm, instruction inst) {
@@ -61,6 +72,27 @@ trap exec_vm_inst(machine *vm, instruction inst) {
     }
     vm->stack[vm->stack_size - 2] -= vm->stack[vm->stack_size - 1];
     vm->stack_size -= 1;
+
+  case INST_EQ:
+    if (vm->stack_size < 2) {
+      return TRAP_STACK_UNDERFLOW;
+    }
+
+    // check for conditional ==
+    if (vm->stack[vm->stack_size - 2] == vm->stack[vm->stack_size - 1]) {
+      vm->stack[vm->stack_size++] = 1;
+    } else {
+      vm->stack[vm->stack_size++] = 0;
+    }
+  case INST_READ_PTR:
+    if (vm->stack_size < 1) {
+      return TRAP_STACK_UNDERFLOW;
+    }
+
+    inst_word *ptr = &(vm->stack[vm->stack_size - 1]);
+    printf("prev pointer address: %p\n", &ptr);
+    printf("prev pointer val: %lu", *ptr);
+    vm->stack_size -= 1;
   default:
     return TRAP_ILLEGAL_INST;
     break;
@@ -69,7 +101,7 @@ trap exec_vm_inst(machine *vm, instruction inst) {
 }
 
 void dump_machine_regs(const machine *vm) {
-  printf("Stack:\n");
+  printf("\nStack:\n");
   for (size_t i = 0; i < vm->stack_size; i++) {
     printf("   %ld\n", vm->stack[i]);
   }
@@ -77,8 +109,9 @@ void dump_machine_regs(const machine *vm) {
 
 void program(machine *vm) {
   exec_vm_inst(vm, inst_push(10));
-  exec_vm_inst(vm, inst_push(40));
-  exec_vm_inst(vm, inst_sub());
+  exec_vm_inst(vm, inst_read_previous_ptr());
+  exec_vm_inst(vm, inst_push(10));
+  exec_vm_inst(vm, inst_eq());
 }
 
 int main(void) {
